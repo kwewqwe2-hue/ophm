@@ -19,6 +19,8 @@ struct SettingsPage {
     longestStreak: 0,
     lastActiveDate: ''
   }
+  @StorageLink('__refresh_trigger') @Watch('loadData') refreshTrigger: number = 0
+  @StorageLink('shared_growth') @Watch('loadData') growthJson: string = ''
 
   // 动画状态
   @State headerScale: number = 0
@@ -36,6 +38,16 @@ struct SettingsPage {
   }
 
   private async loadData(): Promise<void> {
+    // 优先从 AppStorage 读取（专注完成后同步更新的最新数据）
+    let json = AppStorage.get<string>('shared_growth')
+    if (json && typeof json === 'string') {
+      try {
+        this.growth = JSON.parse(json) as UserGrowth
+        return
+      } catch (e) {
+      }
+    }
+    // AppStorage 为空时从磁盘读取（首次加载）
     this.growth = await PreferencesUtil.getUserGrowth()
   }
 

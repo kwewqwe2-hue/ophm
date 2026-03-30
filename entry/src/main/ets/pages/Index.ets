@@ -27,7 +27,7 @@ struct Index {
     { title: '专注', icon: '⏱' },
     { title: '计划', icon: '📋' },
     { title: '日历', icon: '📅' },
-    { title: '笔记', icon: '📝' },
+    { title: '记录', icon: '📝' },
     { title: '成长', icon: '🌳' },
     { title: '工具箱', icon: '🧰' }
   ]
