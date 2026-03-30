@@ -9,13 +9,12 @@ import curves from '@ohos.curves'
 import audio from '@ohos.multimedia.audio'
 
 const SAMPLE_RATE = 44100
-const CHANNEL_COUNT = 1 // 单声道
-const BUFFER_DURATION_MS = 100 // 每批次 100ms
+const BUFFER_DURATION_MS = 100
 
 @Entry
 @Component
 struct WhiteNoisePage {
-  @State currentSound: number = -1 // -1无, 0雨声, 1咖啡馆
+  @State currentSound: number = -1
   @State isPlaying: boolean = false
   @State volume: number = 70
   @State timerSeconds: number = 0
@@ -53,12 +52,12 @@ struct WhiteNoisePage {
       let rendererOptions: audio.AudioRendererOptions = {
         streamInfo: {
           samplingRate: SAMPLE_RATE,
-          channels: audio.Channel[] = [audio.Channel.MONO],
-          sampleFormat: audio.SampleFormat.S16LE,
-          encodingType: audio.EncodingType.DEFAULT
+          channels: 1,
+          sampleFormat: 1,
+          encodingType: 0
         },
         rendererInfo: {
-          usage: audio.StreamUsage.STREAM_USAGE_MEDIA,
+          usage: 1,
           rendererFlags: 0
         },
         audioStreamOutputChangeCallback: undefined
@@ -82,11 +81,11 @@ struct WhiteNoisePage {
     }
 
     try {
-      await this.audioRenderer.start()
+      let renderer = this.audioRenderer
+      await renderer.start()
       this.currentSound = soundType
       this.isPlaying = true
       this.errorMsg = ''
-      // 开始持续生成音频
       this.scheduleNextRender()
     } catch (e) {
       this.errorMsg = '音频播放失败'
@@ -103,7 +102,8 @@ struct WhiteNoisePage {
     }
     if (this.audioRenderer) {
       try {
-        await this.audioRenderer.stop()
+        let renderer = this.audioRenderer
+        await renderer.stop()
       } catch (e) {
         // ignore
       }
@@ -114,7 +114,8 @@ struct WhiteNoisePage {
   private async releaseRenderer(): Promise<void> {
     if (this.audioRenderer) {
       try {
-        await this.audioRenderer.release()
+        let renderer = this.audioRenderer
+        await renderer.release()
       } catch (e) {
         // ignore
       }
@@ -150,7 +151,7 @@ struct WhiteNoisePage {
 
     try {
       let sampleCount = Math.floor(SAMPLE_RATE * BUFFER_DURATION_MS / 1000)
-      let byteCount = sampleCount * 2 // 16-bit mono
+      let byteCount = sampleCount * 2
       let buffer = new ArrayBuffer(byteCount)
       let view = new DataView(buffer)
 
@@ -161,19 +162,17 @@ struct WhiteNoisePage {
         } else {
           sample = this.generateBrownNoise()
         }
-        // 软限幅防止爆音
         sample = Math.max(-0.95, Math.min(0.95, sample))
         let sampleInt = Math.round(sample * 32767)
         view.setInt16(i * 2, sampleInt, true)
       }
 
-      // 写入音频数据
-      this.audioRenderer.write(buffer)
+      let renderer = this.audioRenderer
+      renderer.write(buffer)
     } catch (e) {
       // ignore
     }
 
-    // 继续调度下一批次
     this.scheduleNextRender()
   }
 
@@ -181,18 +180,16 @@ struct WhiteNoisePage {
     if (this.isPlaying) {
       this.renderTaskId = setTimeout(() => {
         this.fillBuffer()
-      }, BUFFER_DURATION_MS - 5) // 提前5ms调度，避免间隙
+      }, BUFFER_DURATION_MS - 5)
     }
   }
 
   // 选择声音
   private async selectSound(index: number): Promise<void> {
     if (this.currentSound === index && this.isPlaying) {
-      // 点击同一声音：停止
       await this.stopPlayback()
       this.stopTimer()
     } else {
-      // 切换声音：先停止再播放
       await this.stopPlayback()
       this.currentSound = index
       this.startTimer()
@@ -200,7 +197,6 @@ struct WhiteNoisePage {
     }
   }
 
-  // 调整音量（实时生效）
   private changeVolume(vol: number): void {
     this.volume = vol
   }
