@@ -73,7 +73,7 @@ export struct ToolboxTab {
   }
 
   private getToolIcon(index: number): string {
-    let icons: string[] = ['🎵', '🫁', '⭐', '📖', '🏆', '📊', '🎯', '📵']
+    let icons: string[] = ['音', '呼', '星', '记', '杯', '图', '标', '禁']
     return icons[index]
   }
 
@@ -84,7 +84,7 @@ export struct ToolboxTab {
 
   private getToolDesc(index: number): string {
     let descs: string[] = [
-      '雨声/纯音乐环境音',
+      '雨声/咖啡厅环境音',
       '1-3分钟引导呼吸',
       '自评1-5星+中断原因',
       '简短复盘今日成果',

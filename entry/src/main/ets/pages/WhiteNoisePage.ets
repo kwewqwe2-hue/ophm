@@ -1,7 +1,7 @@
 /**
  * 白噪音/环境音页面
- * 雨声：粉红噪声（Pink Noise）— 经过低通滤波的随机噪声，接近真实雨声
- * 咖啡馆：棕色噪声（Brown Noise）— 低频主导的温暖噪声，接近咖啡馆背景音
+ * 雨声：粉红噪声（Pink Noise）
+ * 咖啡馆：极柔和的棕色噪声（Brown Noise）— 低频主导，温暖舒适
  * 使用 @ohos.multimedia.audio 的 AudioRenderer 实时合成，不依赖外部文件
  */
 import router from '@ohos.router'
@@ -35,8 +35,10 @@ struct WhiteNoisePage {
   // 噪声生成状态（雨声）
   private pinkB0: number = 0; private pinkB1: number = 0; private pinkB2: number = 0
   private pinkB3: number = 0; private pinkB4: number = 0; private pinkB5: number = 0; private pinkB6: number = 0
-  // 纯音乐合成状态（咖啡馆/纯音乐）
-  private musicPhase: number = 0  // 全局相位
+  // 棕色噪声状态（咖啡馆）
+  private brownValue: number = 0
+  // 柔和版棕色噪声（极低频版本，比标准更柔和）
+  private brownValueSoft: number = 0
 
   aboutToAppear(): void {
     this.playEntranceAnimation()
@@ -62,7 +64,6 @@ struct WhiteNoisePage {
           rendererFlags: 0
         }
       }
-
       this.audioRenderer = await audio.createAudioRenderer(rendererOptions)
       this.rendererReady = true
       return true
@@ -79,7 +80,6 @@ struct WhiteNoisePage {
       let ok = await this.initRenderer()
       if (!ok) return
     }
-
     try {
       let renderer = this.audioRenderer
       if (renderer) {
@@ -109,24 +109,7 @@ struct WhiteNoisePage {
           await renderer.stop()
         }
       } catch (e) {
-        // ignore
       }
-    }
-  }
-
-  // 释放渲染器
-  private async releaseRenderer(): Promise<void> {
-    if (this.audioRenderer) {
-      try {
-        let renderer = this.audioRenderer
-        if (renderer) {
-          await renderer.release()
-        }
-      } catch (e) {
-        // ignore
-      }
-      this.audioRenderer = null
-      this.rendererReady = false
     }
   }
 
@@ -144,42 +127,18 @@ struct WhiteNoisePage {
     return pink * 0.11 * (this.volume / 100)
   }
 
-  // 生成 Ambient 纯音乐（咖啡馆/放松氛围）
-  // 多个正弦波叠加形成 Dm 和弦 + 泛音，带缓慢颤音，营造放松的氛围
-  private generateAmbientMusic(): number {
-    // D小调和弦频率 (D3=146.83, F3=174.61, A3=220.00, C4=261.63)
-    // 加一个低八度和一个高八度的泛音
-    let f1 = 146.83 // D3
-    let f2 = 174.61 // F3
-    let f3 = 220.00 // A3
-    let f4 = 261.63 // C4
-    let f5 = 293.66 // D4
-    let f6 = 329.63 // E4
-
-    // 带颤音的相位（缓慢波动，模拟自然乐器感）
-    let vibrato = Math.sin(this.musicPhase * 0.00008) * 0.003
-    let phase = this.musicPhase * vibrato + this.musicPhase * 0.001
-
-    // 叠加多个和弦音，音量随时间缓慢起伏
-    let wave1 = Math.sin(2 * Math.PI * f1 * phase) * 0.25
-    let wave2 = Math.sin(2 * Math.PI * f2 * phase) * 0.20
-    let wave3 = Math.sin(2 * Math.PI * f3 * phase) * 0.20
-    let wave4 = Math.sin(2 * Math.PI * f4 * phase) * 0.15
-    let wave5 = Math.sin(2 * Math.PI * f5 * phase) * 0.10
-    let wave6 = Math.sin(2 * Math.PI * f6 * phase) * 0.08
-
-    // 整体音量包络（缓慢呼吸感）
-    let envelope = 0.6 + 0.4 * Math.sin(this.musicPhase * 0.00004)
-
-    let sample = (wave1 + wave2 + wave3 + wave4 + wave5 + wave6) * envelope * (this.volume / 100)
-    this.musicPhase++
-    return Math.max(-0.95, Math.min(0.95, sample))
+  // 生成极柔和的棕色噪声（咖啡馆）
+  // 比标准棕色噪声更低频、更柔和：极慢的随机游走
+  private generateCafeNoise(): number {
+    let white = Math.random() * 2 - 1
+    // 极慢的积分器（比标准棕色噪声更慢5倍）
+    this.brownValueSoft = (this.brownValueSoft + 0.004 * white) / 1.004
+    return this.brownValueSoft * 2.5 * (this.volume / 100)
   }
 
   // 填充一个批次音频
   private fillBuffer(): void {
     if (!this.audioRenderer || !this.isPlaying) return
-
     try {
       let sampleCount = Math.floor(SAMPLE_RATE * BUFFER_DURATION_MS / 1000)
       let byteCount = sampleCount * 2
@@ -191,7 +150,7 @@ struct WhiteNoisePage {
         if (this.currentSound === 0) {
           sample = this.generatePinkNoise()
         } else {
-          sample = this.generateAmbientMusic()
+          sample = this.generateCafeNoise()
         }
         sample = Math.max(-0.95, Math.min(0.95, sample))
         let sampleInt = Math.round(sample * 32767)
@@ -203,9 +162,7 @@ struct WhiteNoisePage {
         renderer.write(buffer)
       }
     } catch (e) {
-      // ignore
     }
-
     this.scheduleNextRender()
   }
 
@@ -277,9 +234,8 @@ struct WhiteNoisePage {
     Column() {
       // 顶部导航
       Row() {
-        Button('返回')
-          .width(40).height(40)
-          .fontSize(14)
+        Button('←')
+          .width(40).height(40).fontSize(20)
           .backgroundColor($r('app.color.bg_surface'))
           .fontColor($r('app.color.text_primary'))
           .borderRadius(20)
@@ -288,7 +244,7 @@ struct WhiteNoisePage {
             this.stopTimer()
             router.back()
           })
-        Text('环境音')
+        Text('白噪音')
           .fontSize(20).fontWeight(FontWeight.Bold)
           .fontColor($r('app.color.text_primary'))
           .margin({ left: 12 }).layoutWeight(1)
@@ -304,7 +260,6 @@ struct WhiteNoisePage {
           // 播放状态显示
           Column() {
             if (this.isPlaying) {
-              // 波形动画
               Row() {
                 ForEach([16, 24, 32, 20, 28, 36, 22, 30, 18, 26], (h: number, i: number) => {
                   Row()
@@ -318,7 +273,7 @@ struct WhiteNoisePage {
               }
               .margin({ bottom: 16 })
 
-              Text(this.currentSound === 0 ? '雨声播放中' : '纯音乐播放中')
+              Text(this.currentSound === 0 ? '雨声播放中...' : '咖啡厅音播放中...')
                 .fontSize(18).fontColor($r('app.color.text_primary')).fontWeight(FontWeight.Bold)
 
               Text(this.formatTime(this.timerSeconds))
@@ -330,8 +285,7 @@ struct WhiteNoisePage {
                   .fontSize(12).fontColor('#FF9800').margin({ top: 8 })
               }
             } else {
-              Text('')
-                .fontSize(60).margin({ bottom: 8 })
+              Text('').fontSize(60).margin({ bottom: 8 })
               Text('选择一种环境音开始放松')
                 .fontSize(16).fontColor($r('app.color.text_secondary'))
             }
@@ -341,19 +295,15 @@ struct WhiteNoisePage {
 
           // 声音选择卡片
           Row() {
-            // 雨声卡片
+            // 雨声
             Column() {
-              Text('')
-                .fontSize(40).margin({ bottom: 8 })
-              Text('雨声')
-                .fontSize(16).fontWeight(FontWeight.Bold)
+              Text('雨').fontSize(40).margin({ bottom: 8 })
+              Text('雨声').fontSize(16).fontWeight(FontWeight.Bold)
                 .fontColor($r('app.color.text_primary'))
-              Text('静谧雨夜')
-                .fontSize(12).fontColor($r('app.color.text_secondary')).margin({ top: 4 })
+              Text('静谧雨夜').fontSize(12).fontColor($r('app.color.text_secondary')).margin({ top: 4 })
 
               if (this.currentSound === 0 && this.isPlaying) {
-                Text('播放中')
-                  .fontSize(11).fontColor('#42A5F5')
+                Text('播放中').fontSize(11).fontColor('#42A5F5')
                   .fontWeight(FontWeight.Bold).margin({ top: 8 })
               }
             }
@@ -368,28 +318,24 @@ struct WhiteNoisePage {
 
             Column().width(12)
 
-            // 咖啡馆卡片
+            // 咖啡厅
             Column() {
-              Text('')
-                .fontSize(40).margin({ bottom: 8 })
-              Text('纯音乐')
-                .fontSize(16).fontWeight(FontWeight.Bold)
+              Text('咖').fontSize(40).margin({ bottom: 8 })
+              Text('咖啡厅').fontSize(16).fontWeight(FontWeight.Bold)
                 .fontColor($r('app.color.text_primary'))
-              Text('放松舒缓')
-                .fontSize(12).fontColor($r('app.color.text_secondary')).margin({ top: 4 })
+              Text('舒适嘈杂').fontSize(12).fontColor($r('app.color.text_secondary')).margin({ top: 4 })
 
               if (this.currentSound === 1 && this.isPlaying) {
-                Text('播放中')
-                  .fontSize(11).fontColor('#9575CD')
+                Text('播放中').fontSize(11).fontColor('#8D6E63')
                   .fontWeight(FontWeight.Bold).margin({ top: 8 })
               }
             }
             .layoutWeight(1)
             .padding(24)
-            .backgroundColor(this.currentSound === 1 && this.isPlaying ? '#EDE7F6' : $r('app.color.bg_card'))
+            .backgroundColor(this.currentSound === 1 && this.isPlaying ? '#EFEBE9' : $r('app.color.bg_card'))
             .borderRadius(20)
             .alignItems(HorizontalAlign.Center)
-            .border({ width: this.currentSound === 1 && this.isPlaying ? 2 : 0, color: '#9575CD' })
+            .border({ width: this.currentSound === 1 && this.isPlaying ? 2 : 0, color: '#8D6E63' })
             .shadow({ radius: 6, color: $r('app.color.shadow_color'), offsetY: 2 })
             .onClick(() => { this.selectSound(1) })
           }
@@ -398,22 +344,17 @@ struct WhiteNoisePage {
           // 音量控制
           Column() {
             Row() {
-              Text('音量')
-                .fontSize(14).fontColor($r('app.color.text_secondary'))
+              Text('音量').fontSize(14).fontColor($r('app.color.text_secondary'))
               Blank()
-              Text(`${this.volume}%`)
-                .fontSize(14)
-                .fontColor($r('app.color.text_primary'))
-                .fontWeight(FontWeight.Bold)
+              Text(`${this.volume}%`).fontSize(14)
+                .fontColor($r('app.color.text_primary')).fontWeight(FontWeight.Bold)
             }.width('100%').margin({ bottom: 8 })
 
             Slider({ value: this.volume, min: 0, max: 100, step: 5 })
               .blockColor($r('app.color.primary_blue'))
               .trackColor($r('app.color.progress_track'))
               .selectedColor($r('app.color.primary_blue'))
-              .onChange((value: number) => {
-                this.changeVolume(Math.round(value))
-              })
+              .onChange((value: number) => { this.changeVolume(Math.round(value)) })
           }
           .width('100%')
           .padding(20)
@@ -425,17 +366,13 @@ struct WhiteNoisePage {
           if (this.isPlaying) {
             Button('停止播放')
               .width('60%').height(48).fontSize(16).fontWeight(FontWeight.Bold)
-              .fontColor(Color.White)
-              .backgroundColor($r('app.color.error_red')).borderRadius(24)
+              .fontColor(Color.White).backgroundColor($r('app.color.error_red')).borderRadius(24)
               .margin({ top: 24 })
-              .onClick(() => {
-                this.stopPlayback()
-                this.stopTimer()
-              })
+              .onClick(() => { this.stopPlayback(); this.stopTimer() })
           }
 
-          // 说明文字
-          Text('提示：雨声采用粉红噪声合成，纯音乐采用程序化合成，无需联网即可播放')
+          // 提示
+          Text('提示：环境音为程序化合成，无需联网即可播放')
             .fontSize(11).fontColor($r('app.color.text_hint'))
             .margin({ top: 20, bottom: 40 }).textAlign(TextAlign.Center)
         }.width('100%')
