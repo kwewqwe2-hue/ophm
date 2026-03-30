@@ -59,8 +59,7 @@ struct WhiteNoisePage {
         rendererInfo: {
           usage: 1,
           rendererFlags: 0
-        },
-        audioStreamOutputChangeCallback: undefined
+        }
       }
 
       this.audioRenderer = await audio.createAudioRenderer(rendererOptions)
@@ -82,11 +81,13 @@ struct WhiteNoisePage {
 
     try {
       let renderer = this.audioRenderer
-      await renderer.start()
-      this.currentSound = soundType
-      this.isPlaying = true
-      this.errorMsg = ''
-      this.scheduleNextRender()
+      if (renderer) {
+        await renderer.start()
+        this.currentSound = soundType
+        this.isPlaying = true
+        this.errorMsg = ''
+        this.scheduleNextRender()
+      }
     } catch (e) {
       this.errorMsg = '音频播放失败'
       this.isPlaying = false
@@ -103,7 +104,9 @@ struct WhiteNoisePage {
     if (this.audioRenderer) {
       try {
         let renderer = this.audioRenderer
-        await renderer.stop()
+        if (renderer) {
+          await renderer.stop()
+        }
       } catch (e) {
         // ignore
       }
@@ -115,7 +118,9 @@ struct WhiteNoisePage {
     if (this.audioRenderer) {
       try {
         let renderer = this.audioRenderer
-        await renderer.release()
+        if (renderer) {
+          await renderer.release()
+        }
       } catch (e) {
         // ignore
       }
@@ -168,7 +173,9 @@ struct WhiteNoisePage {
       }
 
       let renderer = this.audioRenderer
-      renderer.write(buffer)
+      if (renderer) {
+        renderer.write(buffer)
+      }
     } catch (e) {
       // ignore
     }
